@@ -61,7 +61,7 @@ namespace app_logger
 		std::string path; // 日志路径
 		size_t fs; // 文件大小
 	private:
-		static const size_t MAX_LOG_SIZE = 1024 * 1024; // 1M
+		static const size_t MAX_LOG_SIZE = 1024 * 1024 * 10; // 10M
 		static const size_t MAX_BUF_SIZE = 1024 * 4; // 4K
 	};
 
