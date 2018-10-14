@@ -1,6 +1,5 @@
 #pragma once
 #include <sstream>
-#include <fstream>
 #include <mutex>
 #include <map>
 #include <memory>
@@ -27,16 +26,14 @@ namespace app_logger
 	class logger_backend
 	{
 	public:
-		logger_backend(const std::string& path);
+		logger_backend();
 		~logger_backend();
 
 #if ENABLE_ASYNC_LOGGER == 0
-		void WriteLog(const std::string& log, const logger_level& l);
+		void WriteLog(const std::string& path, const std::string& log, const logger_level& l);
 #else 
-		void WriteLog(const std::string& log, const logger_level& l);
+		void WriteLog(const std::string& path, const std::string& log, const logger_level& l);
 		
-	public:
-		void Start();
 	private:
 		void write_thread(); // 异步写线程
 		void stop_thread(); // 停止写线程
@@ -45,21 +42,48 @@ namespace app_logger
 		std::thread t; // 线程
 		std::condition_variable c; // 条件变量
 		bool running; // 是否正在运行线程
-		std::vector<std::shared_ptr<std::string>> b; // 缓冲区
-		std::shared_ptr<std::string> cur_write_b; // 当前写入缓冲区
-		std::shared_ptr<std::string> next_write_b; // 下一个可用缓冲区
+
+	private:
+		typedef std::map<std::string, std::string> path_log_map;
+
+		struct logger_info_struct {
+			path_log_map logs_;
+			size_t size_;
+
+		public:
+			logger_info_struct() { size_ = 0; }
+
+			void clear() {
+				logs_.clear();
+				size_ = 0;
+			}
+			void append(const std::string& path, const std::string& log) {
+				if (logs_.find(path) == logs_.end()) {
+					logs_[path] = "";
+				}
+				logs_[path].append(log);
+				size_ += log.size();
+			}
+			size_t size() const { return size_; }
+			const path_log_map& logs() const { return logs_; }
+		};
+
+		typedef std::shared_ptr<logger_info_struct> logger_info_struct_ptr;
+		typedef std::vector<logger_info_struct_ptr> logger_info_struct_ptr_vec;
+
+		logger_info_struct_ptr_vec b; // 缓冲区，放置待写入的日志
+		logger_info_struct_ptr cur_write_b; // 当前的写入缓冲区
+		logger_info_struct_ptr next_write_b; // 下一个可用缓冲区
 
 	private:
 		static const int ASYNC_THREAD_INTERVAL = 2 * 1000; // 2s
 #endif
 	private:
-		void write_log(const std::string& log);
-		bool is_must_backup() const;
+		void write_log(std::ofstream& f, size_t& fs,
+			const std::string&path, const std::string& log);
+		bool is_must_backup(int fs) const;
 	private:
 		std::mutex lock; // 写锁
-		std::ofstream f; // 日志输出的文件
-		std::string path; // 日志路径
-		size_t fs; // 文件大小
 	private:
 		static const size_t MAX_LOG_SIZE = 1024 * 1024 * 10; // 10M
 		static const size_t MAX_BUF_SIZE = 1024 * 4; // 4K
@@ -69,20 +93,14 @@ namespace app_logger
 	class logger_factory
 	{
 	public:
-		typedef std::shared_ptr<logger_backend> logger_ptr;
-		typedef std::map<std::string, logger_ptr> logger_map;
-		typedef std::shared_ptr<logger_map> logger_map_ptr;
-
-	public:
 		static const logger_level LOGGER_LEVEL = logger_debug;
-		static logger_backend& GetLoggerBackend(const std::string& path);
 
+		static void Log(const std::string& path, const std::string& log, const logger_level& level);
 	private:
 		logger_factory();
 		~logger_factory();
 
-		logger_map_ptr loggers;
-		std::mutex lock;
+		logger_backend logger;
 
 		static logger_factory g_inst;
 	};
@@ -126,8 +144,7 @@ namespace app_logger
 			/// 写入换行，以及直接写入文件
 			info += "\n";
 			if (!path.empty()) {
-				logger_backend& logger = logger_factory::GetLoggerBackend(path);
-				logger.WriteLog(info, level);
+				logger_factory::Log(path, info, level);
 				info = "";
 			}
 			return *this;
