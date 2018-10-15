@@ -42,7 +42,7 @@ namespace app_logger
 		std::thread t; // 线程
 		std::condition_variable c; // 条件变量
 		bool running; // 是否正在运行线程
-
+		bool init; // 是否启动了线程
 	private:
 		typedef std::map<std::string, std::string> path_log_map;
 
