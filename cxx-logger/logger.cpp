@@ -74,8 +74,6 @@ void logger_backend::WriteLog(const std::string& path, const std::string& log, c
 void logger_backend::WriteLog(const std::string& path, const std::string& log, const logger_level& l)
 {
 	if (l < logger_factory::LOGGER_LEVEL) return;
-
-	if (running == false) return; /// 已经没有在异步写线程了，不允许写日志
 	
 	std::unique_lock<std::mutex> locker(lock);
 	
@@ -84,6 +82,8 @@ void logger_backend::WriteLog(const std::string& path, const std::string& log, c
 		init = true;
 	}
 
+	if (running == false) return; /// 已经没有在异步写线程了，不允许写日志
+	
 	if (cur_write_b->size() < MAX_BUF_SIZE) {
 		cur_write_b->append(path, log);
 	}
