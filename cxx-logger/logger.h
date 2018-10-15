@@ -10,7 +10,7 @@
 
 namespace app_logger
 {
-#define ENABLE_ASYNC_LOGGER    1    // ÊÇ·ñÆôÓÃÒì²½Ïß³ÌĞ´ÈëÈÕÖ¾
+#define ENABLE_ASYNC_LOGGER    1    // æ˜¯å¦å¯ç”¨å¼‚æ­¥çº¿ç¨‹å†™å…¥æ—¥å¿—
 
 	enum logger_delimter {
 		logger_endl
@@ -22,7 +22,7 @@ namespace app_logger
 		logger_err,
 	};
 
-	/// ÕæÕıĞ´ÈëÈÕÖ¾µÄºó¶Ë
+	/// çœŸæ­£å†™å…¥æ—¥å¿—çš„åç«¯
 	class logger_backend
 	{
 	public:
@@ -35,13 +35,13 @@ namespace app_logger
 		void WriteLog(const std::string& path, const std::string& log, const logger_level& l);
 		
 	private:
-		void write_thread(); // Òì²½Ğ´Ïß³Ì
-		void stop_thread(); // Í£Ö¹Ğ´Ïß³Ì
-		void start_thread(); // Æô¶¯Òì²½Ğ´Ïß³Ì
+		void write_thread(); // å¼‚æ­¥å†™çº¿ç¨‹
+		void stop_thread(); // åœæ­¢å†™çº¿ç¨‹
+		void start_thread(); // å¯åŠ¨å¼‚æ­¥å†™çº¿ç¨‹
 	private:
-		std::thread t; // Ïß³Ì
-		std::condition_variable c; // Ìõ¼ş±äÁ¿
-		bool running; // ÊÇ·ñÕıÔÚÔËĞĞÏß³Ì
+		std::thread t; // çº¿ç¨‹
+		std::condition_variable c; // æ¡ä»¶å˜é‡
+		bool running; // æ˜¯å¦æ­£åœ¨è¿è¡Œçº¿ç¨‹
 
 	private:
 		typedef std::map<std::string, std::string> path_log_map;
@@ -71,9 +71,9 @@ namespace app_logger
 		typedef std::shared_ptr<logger_info_struct> logger_info_struct_ptr;
 		typedef std::vector<logger_info_struct_ptr> logger_info_struct_ptr_vec;
 
-		logger_info_struct_ptr_vec b; // »º³åÇø£¬·ÅÖÃ´ıĞ´ÈëµÄÈÕÖ¾
-		logger_info_struct_ptr cur_write_b; // µ±Ç°µÄĞ´Èë»º³åÇø
-		logger_info_struct_ptr next_write_b; // ÏÂÒ»¸ö¿ÉÓÃ»º³åÇø
+		logger_info_struct_ptr_vec b; // ç¼“å†²åŒºï¼Œæ”¾ç½®å¾…å†™å…¥çš„æ—¥å¿—
+		logger_info_struct_ptr cur_write_b; // å½“å‰çš„å†™å…¥ç¼“å†²åŒº
+		logger_info_struct_ptr next_write_b; // ä¸‹ä¸€ä¸ªå¯ç”¨ç¼“å†²åŒº
 
 	private:
 		static const int ASYNC_THREAD_INTERVAL = 2 * 1000; // 2s
@@ -83,19 +83,21 @@ namespace app_logger
 			const std::string&path, const std::string& log);
 		bool is_must_backup(int fs) const;
 	private:
-		std::mutex lock; // Ğ´Ëø
+		std::mutex lock; // å†™é”
 	private:
 		static const size_t MAX_LOG_SIZE = 1024 * 1024 * 10; // 10M
 		static const size_t MAX_BUF_SIZE = 1024 * 4; // 4K
 	};
 
-	/// »ñÈ¡¶ÔÓ¦ºó¶ËµÄÈÕÖ¾Ä£¿é
+	/// è·å–å¯¹åº”åç«¯çš„æ—¥å¿—æ¨¡å—
 	class logger_factory
 	{
 	public:
 		static const logger_level LOGGER_LEVEL = logger_debug;
 
 		static void Log(const std::string& path, const std::string& log, const logger_level& level);
+		static void init() { }
+		static void release() { g_inst.logger.stop_thread(); }
 	private:
 		logger_factory();
 		~logger_factory();
@@ -106,7 +108,7 @@ namespace app_logger
 	};
 
 
-	/// ×÷Îª¸ñÊ½»¯ÈÕÖ¾µÄÊµÌå£¬²¢²»ÕæÕıĞ´ÈÕÖ¾µ½ÎÄ¼şÖĞÈ¥
+	/// ä½œä¸ºæ ¼å¼åŒ–æ—¥å¿—çš„å®ä½“ï¼Œå¹¶ä¸çœŸæ­£å†™æ—¥å¿—åˆ°æ–‡ä»¶ä¸­å»
 	class logger_front
 	{
 	public:
@@ -132,16 +134,16 @@ namespace app_logger
 		logger_front& operator << (const wchar_t* t) {
 			return (*this) << (std::wstring(t));
 		}
-		// ÉèÖÃ¼¶±ğ
+		// è®¾ç½®çº§åˆ«
 		template <>
 		logger_front& operator<< (const logger_level& t) {
 			level = t;
 			return *this;
 		}
-		// ÍÆËÍµ½ºó¶Ë½øĞĞÊµ¼ÊµÄĞ´Èë
+		// æ¨é€åˆ°åç«¯è¿›è¡Œå®é™…çš„å†™å…¥
 		template <>
 		logger_front& operator << (const logger_delimter& t) {
-			/// Ğ´Èë»»ĞĞ£¬ÒÔ¼°Ö±½ÓĞ´ÈëÎÄ¼ş
+			/// å†™å…¥æ¢è¡Œï¼Œä»¥åŠç›´æ¥å†™å…¥æ–‡ä»¶
 			info += "\n";
 			if (!path.empty()) {
 				logger_factory::Log(path, info, level);
