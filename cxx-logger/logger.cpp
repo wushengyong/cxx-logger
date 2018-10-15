@@ -26,7 +26,8 @@ logger_backend::logger_backend()
 	running = false;
 	cur_write_b = logger_info_struct_ptr(new logger_info_struct);
 	next_write_b = logger_info_struct_ptr(new logger_info_struct);
-	start_thread();
+	init = false;
+	//start_thread(); å»¶è¿ŸåŠ è½½
 #endif
 }
 
@@ -50,8 +51,8 @@ void logger_backend::write_log(std::ofstream& f, size_t& fs,
 	if (!f.is_open())return;
 
 	if (is_must_backup(fs)) {
-		// Ö´ĞĞ±¸·İ²Ù×÷
-		f.close(); // ÏÈ¹Ø±ÕÎÄ¼ş
+		// æ‰§è¡Œå¤‡ä»½æ“ä½œ
+		f.close(); // å…ˆå…³é—­æ–‡ä»¶
 		std::string new_path = path + "." + app_times::times::systime("%Y-%m-%d-%H-%M-%S");
 		rename(path.c_str(), new_path.c_str());
 		f.open(path, std::ios_base::app);
@@ -74,9 +75,14 @@ void logger_backend::WriteLog(const std::string& path, const std::string& log, c
 {
 	if (l < logger_factory::LOGGER_LEVEL) return;
 
-	if (running == false) return; /// ÒÑ¾­Ã»ÓĞÔÚÒì²½Ğ´Ïß³ÌÁË£¬²»ÔÊĞíĞ´ÈÕÖ¾
+	if (running == false) return; /// å·²ç»æ²¡æœ‰åœ¨å¼‚æ­¥å†™çº¿ç¨‹äº†ï¼Œä¸å…è®¸å†™æ—¥å¿—
 	
 	std::unique_lock<std::mutex> locker(lock);
+	
+	if (init == false){
+		start_thread();
+		init = true;
+	}
 
 	if (cur_write_b->size() < MAX_BUF_SIZE) {
 		cur_write_b->append(path, log);
@@ -103,7 +109,7 @@ void logger_backend::write_thread()
 
 	logger_info_struct_ptr_vec bufs2write;
 
-	bool lastrecycle = false; // ÊÇ·ñÖ´ĞĞÍê³É×îºóÒ»´ÎĞ´
+	bool lastrecycle = false; // æ˜¯å¦æ‰§è¡Œå®Œæˆæœ€åä¸€æ¬¡å†™
 
 	while (running || !lastrecycle)
 	{
@@ -112,7 +118,7 @@ void logger_backend::write_thread()
 			if (b.empty()) {
 				c.wait_for(locker, std::chrono::milliseconds(ASYNC_THREAD_INTERVAL));
 			}
-			/// ¼ä¸ôÒÑ¾­¹ıÁË£¬½«µ±Ç°»º³åÇøµÄÄÚÈİÀ­¹ıÀ´½øĞĞĞ´Èë
+			/// é—´éš”å·²ç»è¿‡äº†ï¼Œå°†å½“å‰ç¼“å†²åŒºçš„å†…å®¹æ‹‰è¿‡æ¥è¿›è¡Œå†™å…¥
 			b.push_back(cur_write_b);
 			cur_write_b.swap(b1);
 			bufs2write.swap(b);
@@ -121,7 +127,7 @@ void logger_backend::write_thread()
 				next_write_b.swap(b2);
 			}
 		}
-		/// Ğ´ÈëÈÕÖ¾
+		/// å†™å…¥æ—¥å¿—
 		std::map<std::string, fs_info> map_fs_info;
 
 		for (auto& buf : bufs2write) {
