@@ -34,7 +34,7 @@ namespace app_logger
 #else 
 		void WriteLog(const std::string& path, const std::string& log, const logger_level& l);
 		
-	private:
+	public:
 		void write_thread(); // 异步写线程
 		void stop_thread(); // 停止写线程
 		void start_thread(); // 启动异步写线程
@@ -43,6 +43,7 @@ namespace app_logger
 		std::condition_variable c; // 条件变量
 		bool running; // 是否正在运行线程
 		bool init; // 是否启动了线程
+
 	private:
 		typedef std::map<std::string, std::string> path_log_map;
 
@@ -97,7 +98,11 @@ namespace app_logger
 
 		static void Log(const std::string& path, const std::string& log, const logger_level& level);
 		static void init() { }
-		static void release() { g_inst.logger.stop_thread(); }
+		static void release() { 
+#if ENABLE_ASYNC_LOGGER == 1
+			g_inst.logger.stop_thread(); 
+#endif
+		}
 	private:
 		logger_factory();
 		~logger_factory();
@@ -145,10 +150,8 @@ namespace app_logger
 		logger_front& operator << (const logger_delimter& t) {
 			/// 写入换行，以及直接写入文件
 			info += "\n";
-			if (!path.empty()) {
-				logger_factory::Log(path, info, level);
-				info = "";
-			}
+			logger_factory::Log(path, info, level);
+			info = "";
 			return *this;
 		}
 
@@ -166,10 +169,12 @@ namespace app_logger
 	<< "[L" << __LINE__ << "]" \
 	<< "[" << __FUNCTION__ << "] "
 
-#define LOG_DEBUG(path)    LOG_MACRO(path, logger_debug, "DEBUG")
-#define LOG_INFO(path)     LOG_MACRO(path, logger_info, "INFO ")
-#define LOG_WARN(path)     LOG_MACRO(path, logger_warn, "WARN ")
-#define LOG_ERR(path)      LOG_MACRO(path, logger_err, "ERR  ")
+#define LOG_DEBUG(path)    LOG_MACRO(path, app_logger::logger_debug, "DEBUG")
+#define LOG_INFO(path)     LOG_MACRO(path, app_logger::logger_info, "INFO ")
+#define LOG_WARN(path)     LOG_MACRO(path, app_logger::logger_warn, "WARN ")
+#define LOG_ERR(path)      LOG_MACRO(path, app_logger::logger_err, "ERR  ")
 }
+
+
 
 
