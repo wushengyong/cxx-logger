@@ -6,18 +6,24 @@ using namespace app_logger;
 
 struct fs_info
 {
-	std::ofstream f;
+	std::ofstream of;
 	size_t size;
+
 	fs_info() {
+
 	}
 	fs_info(const std::string& path) {
-		f.open(path, std::ios_base::app);
+		of.open(path, std::ios_base::app);
 		size = 0;
 
-		if (f.is_open()) {
-			f.seekp(0, f.end);
-			size = (size_t)f.tellp(); 
+		if (of.is_open()) {
+			of.seekp(0, of.end);
+			size = (size_t)of.tellp();
 		}
+	}
+	fs_info(fs_info&& rf){
+		size = rf.size;
+		of.swap(rf.of);
 	}
 };
 logger_backend::logger_backend()
@@ -27,7 +33,7 @@ logger_backend::logger_backend()
 	cur_write_b = logger_info_struct_ptr(new logger_info_struct);
 	next_write_b = logger_info_struct_ptr(new logger_info_struct);
 	init = false;
-	//start_thread(); 延迟加载
+	//start_thread(); 延迟加载进行，否则在dll直接创建会出现问题
 #endif
 }
 
@@ -68,22 +74,24 @@ void logger_backend::WriteLog(const std::string& path, const std::string& log, c
 	if (l < logger_factory::LOGGER_LEVEL) return;
 	std::unique_lock<std::mutex> locker(lock);
 	fs_info info(path);
-	write_log(info.f, info.size, path, log);
+	write_log(info.of, info.size, path, log);
 }
 #else
 void logger_backend::WriteLog(const std::string& path, const std::string& log, const logger_level& l)
 {
 	if (l < logger_factory::LOGGER_LEVEL) return;
-	
+
 	std::unique_lock<std::mutex> locker(lock);
-	
+
 	if (init == false){
 		start_thread();
 		init = true;
 	}
 
-	if (running == false) return; /// 已经没有在异步写线程了，不允许写日志
-	
+	if (running == false) {
+		return; /// 已经没有在异步写线程了，不允许写日志
+	}
+
 	if (cur_write_b->size() < MAX_BUF_SIZE) {
 		cur_write_b->append(path, log);
 	}
@@ -110,7 +118,6 @@ void logger_backend::write_thread()
 	logger_info_struct_ptr_vec bufs2write;
 
 	bool lastrecycle = false; // 是否执行完成最后一次写
-
 	while (running || !lastrecycle)
 	{
 		{
@@ -120,11 +127,14 @@ void logger_backend::write_thread()
 			}
 			/// 间隔已经过了，将当前缓冲区的内容拉过来进行写入
 			b.push_back(cur_write_b);
-			cur_write_b.swap(b1);
-			bufs2write.swap(b);
+			cur_write_b = b1;
+			bufs2write = b;
+			b.clear();
+			b1.reset();
 
 			if (!next_write_b) {
-				next_write_b.swap(b2);
+				next_write_b = b2;
+				b2.reset();
 			}
 		}
 		/// 写入日志
@@ -134,10 +144,10 @@ void logger_backend::write_thread()
 			if (buf->size() == 0) continue;
 			for (auto& log_info : buf->logs()) {
 				if (map_fs_info.find(log_info.first) == map_fs_info.end()) {
-					map_fs_info[log_info.first] = fs_info(log_info.first);
+					map_fs_info.insert(make_pair(log_info.first, fs_info(log_info.first)));
 				}
 				auto& fs_info = map_fs_info[log_info.first];
-				write_log(fs_info.f, fs_info.size, log_info.first, log_info.second);
+				write_log(fs_info.of, fs_info.size, log_info.first, log_info.second);
 			}
 		}
 
@@ -156,7 +166,6 @@ void logger_backend::write_thread()
 
 		if (false == running) lastrecycle = true;
 	}
-
 }
 
 void logger_backend::stop_thread()
